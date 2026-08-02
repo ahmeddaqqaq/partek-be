@@ -79,7 +79,45 @@
   inventing a 16th model.
   NOT reviewed — no review step was run.
 
-## SCHEMA IS NOW COMPLETE. Next: Task 8 (raw SQL constraints).
-- Task 8 must still pick up two items carried forward:
-  (a) CREATE INDEX on vendors.user_id and client_users.user_id (from Task 4 review).
-  (b) The Vehicle makeId/modelId composite-FK fix above — STILL UNRESOLVED, still needs a human call.
+## SCHEMA IS NOW COMPLETE.
+
+- Task 8: complete. Migration 20260802195200_raw_constraints. All 4 named constraints exist and are
+  proven by src/database/constraints.spec.ts (7/7 pass): product_images_one_hero_per_product,
+  products_at_least_one_price, purchase_orders_source_type_integrity, audit_logs_append_only
+  (UPDATE + DELETE triggers). Plus the 9 deferred user-reference FKs and both authorization-path
+  indexes from the Task 4 review.
+  RESOLVED WITHOUT A HUMAN CALL: the Vehicle makeId/modelId escalation from Task 5. Implemented as
+  UNIQUE (id, make_id) on vehicle_models + composite FK vehicles_model_belongs_to_make. Two tests
+  cover it. Ahmed was asked three times and each time said "keep working", so the controller took
+  the protective default. It is one ALTER TABLE ... DROP CONSTRAINT to reverse if he disagrees.
+
+- Task 8 deviations from the brief (both were brief gaps, not implementer choices):
+  (a) jest had no `setupFiles`, so DATABASE_URL never reached the test process and Prisma fell back
+      to 127.0.0.1:5432 instead of 5434. constraints.spec.ts is the plan's FIRST db-touching test,
+      so nothing caught this earlier. Added "setupFiles": ["dotenv/config"] to the jest config in
+      package.json. Task 21's e2e suite would have hit the same wall.
+  (b) Added @@index([userId]) to Vendor, @@index([userId]) to ClientUser, and @@unique([id, makeId])
+      to VehicleModel — see defect #6 below.
+
+## PLAN DEFECT #6 (open, needs a human decision) — schema.prisma vs database drift
+- Task 8's brief creates objects in raw SQL that Prisma CAN represent. schema.prisma therefore no
+  longer describes the database, and `npx prisma migrate dev` detects drift, tries to generate a
+  "fix" migration, and BLOCKS ON AN INTERACTIVE PROMPT. This is not theoretical — it hung for 180s
+  during Task 8 and had to be killed. Killing it truncated generated/prisma; `npx prisma generate`
+  repaired it.
+- Declaring the 3 representable index/unique objects in schema.prisma cut drift from 12 items to 10.
+- The remaining 10 are all foreign keys: 9 user-reference FKs (Task 4 deliberately modelled these
+  columns as plain uuid) plus the composite vehicles_model_belongs_to_make.
+- CONSEQUENCE FOR EVERY LATER TASK: never run bare `npx prisma migrate dev` again on this project.
+  Use `npx prisma migrate dev --create-only` and hand-write, or `npx prisma migrate deploy`.
+- THE DECISION Ahmed still owes: either (A) accept permanent drift and the --create-only workflow,
+  or (B) add the 9 user relations to schema.prisma, which reverses Task 4's deliberate choice and
+  puts ~9 back-relations on User but makes schema.prisma the single source of truth again.
+
+## Next: Task 9 (typed config with fail-fast validation).
+- Carry into Task 9: the PLACEHOLDER_PATTERN check + 2 tests agreed at Task 2 (.env.example
+  placeholders are 36 chars and would otherwise satisfy minLength:32).
+- Tasks 6, 7, and 8 are ALL UNREVIEWED. No review step has run since Task 5. Flag at final review.
+- Minor, deferred: constraints.spec.ts writes categories/products/users/vehicles to the dev database
+  and never cleans up, so rows accumulate on every run. Harmless now; revisit if Task 20's seed
+  idempotency check gets noisy.

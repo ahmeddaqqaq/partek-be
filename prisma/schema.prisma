@@ -219,6 +219,7 @@ model Vendor {
   locations VendorLocation[]
 
   @@index([status])
+  @@index([userId])
   @@map("vendors")
 }
 
@@ -308,6 +309,7 @@ model ClientUser {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, userId])
+  @@index([userId])
   @@map("client_users")
 }
 
@@ -360,6 +362,7 @@ model VehicleModel {
   make     VehicleMake @relation(fields: [makeId], references: [id], onDelete: Cascade)
   vehicles Vehicle[]
 
+  @@unique([id, makeId])
   @@index([makeId])
   @@map("vehicle_models")
 }
