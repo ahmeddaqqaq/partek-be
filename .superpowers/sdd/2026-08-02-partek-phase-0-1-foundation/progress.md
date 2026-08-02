@@ -157,12 +157,34 @@
   than a legible AuditAppendOnlyError.
   NOTE for Task 18: AuditAppendOnlyError is exported and needs mapping in the exception filter.
 
-## Next: Task 11 (auth — password hashing and register).
-- Task 11 ships an EMPTY placeholder TokenService, filled in at Task 13. That is intended (see
-  pre-flight rulings) — do not treat it as an omission.
+- Task 11: complete. PasswordService, AuthRepository, AuthService.register, AuthTokensDto/AuthUserDto,
+  expanded RegisterDto. TDD followed on both units (password service and register both confirmed
+  failing on "Cannot find module" first). Full suite 7 suites / 39 tests; tsc clean.
+- Task 11 deviations from the brief (both were brief defects):
+  (a) PLAN DEFECT #7 — the brief said to create TokenService as an EMPTY class (`export class
+      TokenService {}`) and claimed that satisfies tsc. It does not: AuthService.register calls
+      this.tokens.issue(user, ctx), so an empty class fails with "Property 'issue' does not exist".
+      Placeholder now declares the real signature and throws in the body, so a pre-Task-13 caller
+      fails loudly instead of returning undefined tokens. TokenPair is exported from token.service.ts
+      rather than auth.service.ts to avoid an import cycle — Task 13 should keep it there.
+  (b) The brief said to update register.dto.spec.ts's third test to a 7-char password and "add
+      role: 'client' to the two passing cases", but overlooked that the FIRST test's existing
+      password 'pass123' is itself only 7 chars. Left as written it would fail its own
+      expect(errors).toHaveLength(0) against the new MinLength(8). Changed to 'password123'.
+- Task 11 extra coverage (not in the brief): RegisterDto gained @IsEnum(role), @Matches on a Saudi
+  mobile, and @IsEnum(preferredLanguage), but the brief's spec asserted none of them. Added 3 tests
+  — role missing, non-Saudi phone rejected, Saudi phone accepted. register.dto.spec.ts is now 6/6.
+  The phone regex ^\+9665\d{8}$ accepts ONLY +9665XXXXXXXX, so landlines and non-Saudi numbers are
+  rejected by design; revisit if the spec ever needs non-mobile contacts.
+
+## Next: Task 12 (auth — login and the JWT strategy).
+- Task 12 consumes AuthService.toAuthUser, which is `protected` on purpose so the login path can
+  reuse it via subclassing or a sibling method without exposing it on the public surface.
+- TokenService is still the throwing placeholder until Task 13. Task 12's login will call issue()
+  the same way register does, so its unit tests must mock TokenService exactly as Task 11's do.
 - bcrypt is the Task 1 npm-audit item: CRITICAL tar <- @mapbox/node-pre-gyp <- bcrypt@5, install-time
-  only. Task 11 is where bcrypt actually starts being used. Still deferred; triage before merge.
-- Tasks 6, 7, and 8 were reviewed by the controller (see above). Tasks 9 and 10 are UNREVIEWED.
+  only. Now actually in use. Still deferred; triage before merge. Real fix is bcrypt@6.
+- Tasks 6, 7, and 8 were reviewed by the controller (see above). Tasks 9, 10, and 11 are UNREVIEWED.
   No independent review has run since Task 5. Flag at final review.
 - Minor, deferred: constraints.spec.ts writes categories/products/users/vehicles to the dev database
   and never cleans up, so rows accumulate on every run. Harmless now; revisit if Task 20's seed
