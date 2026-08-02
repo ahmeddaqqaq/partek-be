@@ -144,10 +144,25 @@
   undefined values. That is the intended fail-fast behaviour, but it means any task that imports
   it outside a Nest context will throw at import time if the environment is incomplete.
 
-## Next: Task 10 (Prisma audit append-only client extension).
-- Task 10 is the INNER layer of audit protection; the DB trigger from Task 8 is the outer one.
-  Both must be in place. The trigger is already proven by constraints.spec.ts.
-- Tasks 6, 7, and 8 were reviewed by the controller (see above). Task 9 is UNREVIEWED.
+- Task 10: complete. auditAppendOnly extension + AuditAppendOnlyError, exposed as
+  PrismaService.audited. TDD followed: spec failed on "Property 'audited' does not exist" before
+  implementing. 7/7 extension tests; full suite 5 suites / 28 tests; tsc clean.
+  EXTRA TEST (not in the brief): "still blocks the base client, via the database trigger". Task 10's
+  premise is a two-layer guarantee, but every test in the brief exercised only the extended client,
+  so nothing proved layer 2 catches an ORM call that skips layer 1. It does — prisma.auditLog.update
+  and .delete on the BASE client both reject with /append-only/ from the Task 8 trigger. The
+  two-layer claim in the code comment is now verified rather than asserted.
+  NOTE for Task 16: AuditRepository MUST use prisma.audited, not prisma. The base client reaches the
+  database and fails there, but the error is a PrismaClientKnownRequestError from the driver rather
+  than a legible AuditAppendOnlyError.
+  NOTE for Task 18: AuditAppendOnlyError is exported and needs mapping in the exception filter.
+
+## Next: Task 11 (auth — password hashing and register).
+- Task 11 ships an EMPTY placeholder TokenService, filled in at Task 13. That is intended (see
+  pre-flight rulings) — do not treat it as an omission.
+- bcrypt is the Task 1 npm-audit item: CRITICAL tar <- @mapbox/node-pre-gyp <- bcrypt@5, install-time
+  only. Task 11 is where bcrypt actually starts being used. Still deferred; triage before merge.
+- Tasks 6, 7, and 8 were reviewed by the controller (see above). Tasks 9 and 10 are UNREVIEWED.
   No independent review has run since Task 5. Flag at final review.
 - Minor, deferred: constraints.spec.ts writes categories/products/users/vehicles to the dev database
   and never cleans up, so rows accumulate on every run. Harmless now; revisit if Task 20's seed
