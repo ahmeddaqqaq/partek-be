@@ -131,10 +131,24 @@
 - Caveat: Tasks 7 and 8 were written by the same controller that reviewed them. An independent
   review is still worth running before merge.
 
-## Next: Task 9 (typed config with fail-fast validation).
-- Carry into Task 9: the PLACEHOLDER_PATTERN check + 2 tests agreed at Task 2 (.env.example
-  placeholders are 36 chars and would otherwise satisfy minLength:32).
-- Tasks 6, 7, and 8 are ALL UNREVIEWED. No review step has run since Task 5. Flag at final review.
+- Task 9: complete. src/config/config.schema.ts (validateEnv + AppConfig) and a rewritten
+  configuration.ts that is now just `validateEnv(process.env)`. TDD followed: the spec was written
+  first and confirmed failing with "Cannot find module './config.schema'" before implementing.
+  7/7 config tests pass; full suite 4 suites / 21 tests; tsc clean.
+  The Task 2 carry-forward IS included — PLACEHOLDER_PATTERN rejects the .env.example secrets even
+  though both are 36 chars and clear minLength:32. Verified against the literal values in
+  .env.example, which still reads replace-me-access-secret-do-not-ship / replace-me-refresh-...
+  EXTRA CHECK (not in the brief): ran validateEnv against the real .env. It passes, so Task 18's
+  bootstrap will not fail on config. Worth knowing now rather than 9 tasks later.
+  NOTE for Task 18: configuration.ts now THROWS on a bad environment instead of returning
+  undefined values. That is the intended fail-fast behaviour, but it means any task that imports
+  it outside a Nest context will throw at import time if the environment is incomplete.
+
+## Next: Task 10 (Prisma audit append-only client extension).
+- Task 10 is the INNER layer of audit protection; the DB trigger from Task 8 is the outer one.
+  Both must be in place. The trigger is already proven by constraints.spec.ts.
+- Tasks 6, 7, and 8 were reviewed by the controller (see above). Task 9 is UNREVIEWED.
+  No independent review has run since Task 5. Flag at final review.
 - Minor, deferred: constraints.spec.ts writes categories/products/users/vehicles to the dev database
   and never cleans up, so rows accumulate on every run. Harmless now; revisit if Task 20's seed
   idempotency check gets noisy.
