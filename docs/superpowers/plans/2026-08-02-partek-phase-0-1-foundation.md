@@ -1257,7 +1257,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: everything from Tasks 3–6.
-- Produces: the remaining 16 models. After this task the schema is complete and `npx prisma validate` passes with no commented-out relations.
+- Produces: the remaining 15 models. After this task the schema is complete and `npx prisma validate` passes with no commented-out relations.
 
 - [ ] **Step 1: Uncomment the deferred `poLineItems` relations**
 
