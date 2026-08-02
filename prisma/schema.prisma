@@ -1,0 +1,619 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  vendor
+  client
+  delivery_agent
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+enum Language {
+  ar
+  en
+}
+
+enum VendorStatus {
+  pending
+  approved
+  rejected
+  info_required
+  suspended
+}
+
+enum ClientStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum OrgRole {
+  submitter
+  approver
+  escalation_manager
+}
+
+enum BrandType {
+  oem
+  aftermarket
+}
+
+enum ImportJobStatus {
+  pending
+  processing
+  completed
+  failed
+  partial
+}
+
+enum CartStatus {
+  active
+  converted
+  abandoned
+}
+
+enum Incoterm {
+  exw
+  d2d
+}
+
+enum StockStatus {
+  in_stock
+  out_of_stock
+}
+
+enum RfqStatus {
+  draft
+  open
+  closed
+  awarded
+  cancelled
+  expired
+}
+
+enum BidStatus {
+  submitted
+  awarded
+  rejected
+  withdrawn
+}
+
+enum PoSourceType {
+  rfq
+  direct
+}
+
+enum PoStatus {
+  pending
+  approved
+  rejected
+  confirmed
+  cancelled
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready_pickup
+  in_transit
+  delivered
+  completed
+  returned
+  cancelled
+}
+
+enum PaymentType {
+  collection
+  refund
+}
+
+enum PaymentStatus {
+  initiated
+  succeeded
+  failed
+}
+
+enum DisbursementStatus {
+  pending
+  initiated
+  completed
+  failed
+}
+
+enum DeliveryTaskStatus {
+  assigned
+  pickup_confirmed
+  in_transit
+  delivered
+  failed
+}
+
+enum ZatcaInvoiceType {
+  standard
+  credit_note
+}
+
+enum ZatcaSubmissionStatus {
+  pending
+  submitted
+  accepted
+  rejected
+  retry
+}
+
+enum ReturnStatus {
+  requested
+  under_review
+  approved
+  rejected
+  pickup_scheduled
+  received
+  refunded
+}
+
+model User {
+  id                String     @id @default(uuid()) @db.Uuid
+  email             String     @unique
+  passwordHash      String     @map("password_hash")
+  phone             String?
+  role              UserRole
+  status            UserStatus @default(active)
+  preferredLanguage Language   @default(en) @map("preferred_language")
+  lastLoginAt       DateTime?  @map("last_login_at")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+
+  @@index([role, status])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  ipAddress String?   @map("ip_address")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("refresh_tokens")
+}
+
+model Vendor {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  companyNameAr   String       @map("company_name_ar")
+  companyNameEn   String       @map("company_name_en")
+  crNumber        String       @unique @map("cr_number")
+  vatNumber       String?      @map("vat_number")
+  status          VendorStatus @default(pending)
+  approvedBy      String?      @map("approved_by") @db.Uuid
+  approvedAt      DateTime?    @map("approved_at")
+  rejectionReason String?      @map("rejection_reason")
+  platformFeePct  Decimal?     @map("platform_fee_pct") @db.Decimal(5, 2)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  documents VendorDocument[]
+  locations VendorLocation[]
+
+  @@index([status])
+  @@map("vendors")
+}
+
+model DocumentType {
+  id         String  @id @default(uuid()) @db.Uuid
+  nameAr     String  @map("name_ar")
+  nameEn     String  @map("name_en")
+  isRequired Boolean @default(false) @map("is_required")
+  isActive   Boolean @default(true) @map("is_active")
+
+  documents VendorDocument[]
+
+  @@map("document_types")
+}
+
+model VendorDocument {
+  id             String    @id @default(uuid()) @db.Uuid
+  vendorId       String    @map("vendor_id") @db.Uuid
+  documentTypeId String    @map("document_type_id") @db.Uuid
+  fileUrl        String    @map("file_url")
+  expiryDate     DateTime? @map("expiry_date")
+  isValid        Boolean   @default(false) @map("is_valid")
+  uploadedBy     String    @map("uploaded_by") @db.Uuid
+  validatedBy    String?   @map("validated_by") @db.Uuid
+  uploadedAt     DateTime  @default(now()) @map("uploaded_at")
+
+  vendor       Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  documentType DocumentType @relation(fields: [documentTypeId], references: [id])
+
+  @@index([vendorId])
+  @@map("vendor_documents")
+}
+
+model Location {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String
+  addressLine String  @map("address_line")
+  lat         Decimal @db.Decimal(10, 7)
+  lng         Decimal @db.Decimal(10, 7)
+
+  vendorLocations VendorLocation[]
+  clientLocations ClientLocation[]
+
+  @@map("locations")
+}
+
+model VendorLocation {
+  id         String @id @default(uuid()) @db.Uuid
+  vendorId   String @map("vendor_id") @db.Uuid
+  locationId String @map("location_id") @db.Uuid
+
+  vendor   Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, locationId])
+  @@map("vendor_locations")
+}
+
+model Client {
+  id              String       @id @default(uuid()) @db.Uuid
+  companyNameAr   String       @map("company_name_ar")
+  companyNameEn   String       @map("company_name_en")
+  crNumber        String       @unique @map("cr_number")
+  vatNumber       String?      @map("vat_number")
+  status          ClientStatus @default(pending)
+  approvedBy      String?      @map("approved_by") @db.Uuid
+  approvedAt      DateTime?    @map("approved_at")
+  rejectionReason String?      @map("rejection_reason")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  clientUsers ClientUser[]
+  locations   ClientLocation[]
+
+  @@index([status])
+  @@map("clients")
+}
+
+model ClientUser {
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  orgRole   OrgRole  @map("org_role")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, userId])
+  @@map("client_users")
+}
+
+model ClientLocation {
+  id         String @id @default(uuid()) @db.Uuid
+  clientId   String @map("client_id") @db.Uuid
+  locationId String @map("location_id") @db.Uuid
+
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, locationId])
+  @@map("client_locations")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  nameAr    String   @map("name_ar")
+  nameEn    String   @map("name_en")
+  parentId  String?  @map("parent_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model VehicleMake {
+  id      String  @id @default(uuid()) @db.Uuid
+  nameAr  String  @map("name_ar")
+  nameEn  String  @map("name_en")
+  logoUrl String? @map("logo_url")
+
+  models   VehicleModel[]
+  vehicles Vehicle[]
+
+  @@map("vehicle_makes")
+}
+
+model VehicleModel {
+  id     String @id @default(uuid()) @db.Uuid
+  makeId String @map("make_id") @db.Uuid
+  nameAr String @map("name_ar")
+  nameEn String @map("name_en")
+
+  make     VehicleMake @relation(fields: [makeId], references: [id], onDelete: Cascade)
+  vehicles Vehicle[]
+
+  @@index([makeId])
+  @@map("vehicle_models")
+}
+
+model Vehicle {
+  id      String  @id @default(uuid()) @db.Uuid
+  makeId  String  @map("make_id") @db.Uuid
+  modelId String  @map("model_id") @db.Uuid
+  trim    String?
+  year    Int     @db.SmallInt
+  vin     String?
+
+  make          VehicleMake                   @relation(fields: [makeId], references: [id])
+  model         VehicleModel                  @relation(fields: [modelId], references: [id])
+  compatibility ProductVehicleCompatibility[]
+  rfqLineItems  RfqLineItem[]
+
+  @@index([makeId, modelId, year])
+  @@map("vehicles")
+}
+
+model Brand {
+  id        String    @id @default(uuid()) @db.Uuid
+  nameAr    String    @map("name_ar")
+  nameEn    String    @map("name_en")
+  brandType BrandType @map("brand_type")
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id               String   @id @default(uuid()) @db.Uuid
+  vendorId         String   @map("vendor_id") @db.Uuid
+  categoryId       String   @map("category_id") @db.Uuid
+  brandId          String?  @map("brand_id") @db.Uuid
+  oemPartNumber    String?  @map("oem_part_number")
+  nameAr           String   @map("name_ar")
+  nameEn           String   @map("name_en")
+  descriptionAr    String?  @map("description_ar")
+  descriptionEn    String?  @map("description_en")
+  exwPriceSar      Decimal? @map("exw_price_sar") @db.Decimal(10, 2)
+  d2dPriceSar      Decimal? @map("d2d_price_sar") @db.Decimal(10, 2)
+  stockQuantity    Int      @default(0) @map("stock_quantity")
+  weightKg         Decimal? @map("weight_kg") @db.Decimal(10, 3)
+  lengthCm         Decimal? @map("length_cm") @db.Decimal(10, 2)
+  widthCm          Decimal? @map("width_cm") @db.Decimal(10, 2)
+  heightCm         Decimal? @map("height_cm") @db.Decimal(10, 2)
+  isActive         Boolean  @default(true) @map("is_active")
+  qualityValidated Boolean  @default(false) @map("quality_validated")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  category      Category                      @relation(fields: [categoryId], references: [id])
+  brand         Brand?                        @relation(fields: [brandId], references: [id])
+  partNumbers   PartNumber[]
+  images        ProductImage[]
+  compatibility ProductVehicleCompatibility[]
+  cartItems     CartItem[]
+  rfqLineItems  RfqLineItem[]
+  bidLineItems  BidLineItem[]
+  // poLineItems PoLineItem[] is restored in Task 7, once PoLineItem is defined.
+
+  @@index([vendorId, isActive])
+  @@index([categoryId])
+  @@index([oemPartNumber])
+  @@map("products")
+}
+
+model PartNumber {
+  id         String @id @default(uuid()) @db.Uuid
+  productId  String @map("product_id") @db.Uuid
+  partNumber String @map("part_number")
+  source     String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([partNumber])
+  @@map("part_numbers")
+}
+
+model ProductImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  imageUrl  String   @map("image_url")
+  isHero    Boolean  @default(false) @map("is_hero")
+  sortOrder Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model ProductVehicleCompatibility {
+  id        String @id @default(uuid()) @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  vehicleId String @map("vehicle_id") @db.Uuid
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, vehicleId])
+  @@map("product_vehicle_compatibility")
+}
+
+model ProductImportJob {
+  id             String          @id @default(uuid()) @db.Uuid
+  vendorId       String          @map("vendor_id") @db.Uuid
+  uploadedBy     String          @map("uploaded_by") @db.Uuid
+  fileUrl        String          @map("file_url")
+  status         ImportJobStatus @default(pending)
+  totalRows      Int             @default(0) @map("total_rows")
+  succeededRows  Int             @default(0) @map("succeeded_rows")
+  failedRows     Int             @default(0) @map("failed_rows")
+  errorReportUrl String?         @map("error_report_url")
+  startedAt      DateTime?       @map("started_at")
+  completedAt    DateTime?       @map("completed_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  @@index([vendorId, status])
+  @@map("product_import_jobs")
+}
+
+model Cart {
+  id           String     @id @default(uuid()) @db.Uuid
+  clientId     String     @map("client_id") @db.Uuid
+  clientUserId String     @map("client_user_id") @db.Uuid
+  status       CartStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  items CartItem[]
+
+  @@index([clientId, status])
+  @@map("carts")
+}
+
+model CartItem {
+  id                   String      @id @default(uuid()) @db.Uuid
+  cartId               String      @map("cart_id") @db.Uuid
+  productId            String      @map("product_id") @db.Uuid
+  vendorId             String      @map("vendor_id") @db.Uuid
+  quantity             Int
+  selectedIncoterm     Incoterm    @map("selected_incoterm")
+  unitPriceSnapshotSar Decimal     @map("unit_price_snapshot_sar") @db.Decimal(10, 2)
+  addedAt              DateTime    @default(now()) @map("added_at")
+  priceLockedUntil     DateTime    @map("price_locked_until")
+  isStale              Boolean     @default(false) @map("is_stale")
+  stockStatus          StockStatus @default(in_stock) @map("stock_status")
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([cartId])
+  @@index([priceLockedUntil])
+  @@map("cart_items")
+}
+
+model Rfq {
+  id                    String    @id @default(uuid()) @db.Uuid
+  clientId              String    @map("client_id") @db.Uuid
+  createdBy             String    @map("created_by") @db.Uuid
+  rfqNumber             String    @unique @map("rfq_number")
+  preferredDeliveryDate DateTime  @map("preferred_delivery_date")
+  bidDeadline           DateTime  @map("bid_deadline")
+  status                RfqStatus @default(draft)
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  lineItems RfqLineItem[]
+  bids      Bid[]
+  awards    BidAwardSnapshot[]
+
+  @@index([status, bidDeadline])
+  @@index([clientId])
+  @@map("rfqs")
+}
+
+model RfqLineItem {
+  id              String  @id @default(uuid()) @db.Uuid
+  rfqId           String  @map("rfq_id") @db.Uuid
+  vehicleId       String? @map("vehicle_id") @db.Uuid
+  productId       String? @map("product_id") @db.Uuid
+  partDescription String  @map("part_description")
+  quantity        Int
+  specifications  String?
+
+  rfq          Rfq           @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle?      @relation(fields: [vehicleId], references: [id])
+  product      Product?      @relation(fields: [productId], references: [id])
+  bidLineItems BidLineItem[]
+
+  @@index([rfqId])
+  @@map("rfq_line_items")
+}
+
+model Bid {
+  id                    String    @id @default(uuid()) @db.Uuid
+  rfqId                 String    @map("rfq_id") @db.Uuid
+  vendorId              String    @map("vendor_id") @db.Uuid
+  anonymousLabel        String    @map("anonymous_label")
+  incoterm              Incoterm
+  estimatedDeliveryDays Int       @map("estimated_delivery_days")
+  notes                 String?
+  status                BidStatus @default(submitted)
+  submittedAt           DateTime  @default(now()) @map("submitted_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  rfq       Rfq                @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  lineItems BidLineItem[]
+  awards    BidAwardSnapshot[]
+
+  @@unique([rfqId, vendorId])
+  @@unique([rfqId, anonymousLabel])
+  @@index([vendorId, status])
+  @@map("bids")
+}
+
+model BidLineItem {
+  id                String  @id @default(uuid()) @db.Uuid
+  bidId             String  @map("bid_id") @db.Uuid
+  rfqLineItemId     String  @map("rfq_line_item_id") @db.Uuid
+  productId         String? @map("product_id") @db.Uuid
+  exwUnitPriceSar   Decimal @map("exw_unit_price_sar") @db.Decimal(10, 2)
+  d2dUnitPriceSar   Decimal @map("d2d_unit_price_sar") @db.Decimal(10, 2)
+  quantityAvailable Int     @map("quantity_available")
+
+  bid         Bid         @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  rfqLineItem RfqLineItem @relation(fields: [rfqLineItemId], references: [id], onDelete: Cascade)
+  product     Product?    @relation(fields: [productId], references: [id])
+  // poLineItems PoLineItem[] is restored in Task 7, once PoLineItem is defined.
+
+  @@index([bidId])
+  @@map("bid_line_items")
+}
+
+model BidAwardSnapshot {
+  id               String   @id @default(uuid()) @db.Uuid
+  bidId            String   @map("bid_id") @db.Uuid
+  rfqId            String   @map("rfq_id") @db.Uuid
+  clientId         String   @map("client_id") @db.Uuid
+  vendorId         String   @map("vendor_id") @db.Uuid
+  selectedIncoterm Incoterm @map("selected_incoterm")
+  totalAmountSar   Decimal  @map("total_amount_sar") @db.Decimal(12, 2)
+  lineItemsJson    Json     @map("line_items_json")
+  awardedAt        DateTime @default(now()) @map("awarded_at")
+  awardedBy        String   @map("awarded_by") @db.Uuid
+
+  bid Bid @relation(fields: [bidId], references: [id])
+  rfq Rfq @relation(fields: [rfqId], references: [id])
+
+  @@index([rfqId])
+  @@map("bid_award_snapshots")
+}
