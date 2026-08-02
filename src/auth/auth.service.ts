@@ -1,9 +1,14 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { User } from '@prisma-client';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { User, UserStatus } from '@prisma-client';
 import { AuthRepository } from './auth.repository';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import { AuthTokensDto, AuthUserDto } from './dto/auth-response.dto';
 
 export interface RequestContext {
@@ -13,6 +18,12 @@ export interface RequestContext {
 
 @Injectable()
 export class AuthService {
+  private static readonly INVALID_CREDENTIALS = 'Invalid email or password';
+
+  /** A real bcrypt hash of a random string, used to level timing on unknown emails. */
+  private static readonly DUMMY_HASH =
+    '$2b$12$C6UzMDM.H6dfI/f/IKcEe.CFPqZ8jVJ9c1r1YkYlZ1qJ8k1Yq7yzO';
+
   constructor(
     private readonly repo: AuthRepository,
     private readonly passwords: PasswordService,
@@ -36,6 +47,28 @@ export class AuthService {
       preferredLanguage: dto.preferredLanguage,
     });
 
+    const pair = await this.tokens.issue(user, ctx);
+    return { ...pair, user: this.toAuthUser(user) };
+  }
+
+  async login(dto: LoginDto, ctx: RequestContext): Promise<AuthTokensDto> {
+    const user = await this.repo.findUserByEmail(dto.email);
+
+    // Always run a comparison, even with no user, so response time does not
+    // distinguish "unknown email" from "wrong password".
+    const passwordMatches = await this.passwords.compare(
+      dto.password,
+      user?.passwordHash ?? AuthService.DUMMY_HASH,
+    );
+
+    if (!user || !passwordMatches) {
+      throw new UnauthorizedException(AuthService.INVALID_CREDENTIALS);
+    }
+    if (user.status !== UserStatus.active) {
+      throw new UnauthorizedException(AuthService.INVALID_CREDENTIALS);
+    }
+
+    await this.repo.touchLastLogin(user.id);
     const pair = await this.tokens.issue(user, ctx);
     return { ...pair, user: this.toAuthUser(user) };
   }

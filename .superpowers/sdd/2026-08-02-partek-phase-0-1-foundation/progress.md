@@ -177,14 +177,29 @@
   The phone regex ^\+9665\d{8}$ accepts ONLY +9665XXXXXXXX, so landlines and non-Saudi numbers are
   rejected by design; revisit if the spec ever needs non-mobile contacts.
 
-## Next: Task 12 (auth — login and the JWT strategy).
-- Task 12 consumes AuthService.toAuthUser, which is `protected` on purpose so the login path can
-  reuse it via subclassing or a sibling method without exposing it on the public surface.
-- TokenService is still the throwing placeholder until Task 13. Task 12's login will call issue()
-  the same way register does, so its unit tests must mock TokenService exactly as Task 11's do.
+- Task 12: complete. AuthService.login + JwtStrategy (JwtPayload, AuthenticatedUser). TDD followed
+  on both (login failed on "service.login is not a function", strategy on "Cannot find module").
+  auth suite 25 tests; full suite 8 suites / 50 tests; tsc clean. No deviations from the brief.
+  Account-enumeration defence is real and tested: one message for every failure mode, a bcrypt
+  comparison runs even when no user exists, and a suspended account is indistinguishable from bad
+  credentials. JwtStrategy re-reads role AND status from the database, so a token issued before a
+  demotion or suspension does not retain the old rights.
+  EXTRA CHECK (not in the brief): every login unit test mocks PasswordService, so nothing exercised
+  the real DUMMY_HASH constant. If that literal were not a well-formed bcrypt hash, bcrypt.compare
+  would THROW instead of resolving false, turning every unknown-email login into a 500 and undoing
+  the whole enumeration defence. Verified against real bcrypt: resolves false. Task 21's e2e is the
+  first place this would otherwise have surfaced.
+
+## Next: Task 13 (auth — refresh, logout, and the token service).
+- Task 13 REPLACES the throwing TokenService placeholder from Task 11. Keep TokenPair exported from
+  token.service.ts — auth.service.ts imports it from there, and moving it creates an import cycle.
+- The placeholder's `issue(user, ctx)` signature is already depended on by BOTH register and login.
+  Task 13 must keep that shape or update both call sites.
+- refresh_tokens has an index on (user_id, revoked_at) but NOT on expires_at — noted at Task 3 as a
+  gap for a future pruning job. Task 13 is where a pruning path would live if one is added.
 - bcrypt is the Task 1 npm-audit item: CRITICAL tar <- @mapbox/node-pre-gyp <- bcrypt@5, install-time
   only. Now actually in use. Still deferred; triage before merge. Real fix is bcrypt@6.
-- Tasks 6, 7, and 8 were reviewed by the controller (see above). Tasks 9, 10, and 11 are UNREVIEWED.
+- Tasks 6, 7, and 8 were reviewed by the controller (see above). Tasks 9-12 are UNREVIEWED.
   No independent review has run since Task 5. Flag at final review.
 - Minor, deferred: constraints.spec.ts writes categories/products/users/vehicles to the dev database
   and never cleans up, so rows accumulate on every run. Harmless now; revisit if Task 20's seed

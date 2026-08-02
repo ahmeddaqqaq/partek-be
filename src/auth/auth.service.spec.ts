@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserRole, UserStatus, Language } from '@prisma-client';
 
@@ -84,5 +84,84 @@ describe('AuthService.register', () => {
       ConflictException,
     );
     expect(repo.createUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.login', () => {
+  let repo: any;
+  let passwords: any;
+  let tokens: any;
+  let service: AuthService;
+
+  beforeEach(() => {
+    repo = {
+      findUserByEmail: jest.fn().mockResolvedValue(buildUser()),
+      createUser: jest.fn(),
+      touchLastLogin: jest.fn().mockResolvedValue(undefined),
+    };
+    passwords = { hash: jest.fn(), compare: jest.fn().mockResolvedValue(true) };
+    tokens = {
+      issue: jest.fn().mockResolvedValue({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+      }),
+      rotate: jest.fn(),
+      revoke: jest.fn(),
+    };
+    service = new AuthService(repo, passwords, tokens);
+  });
+
+  const dto = { email: 'buyer@fleet.sa', password: 'correct-horse-battery' };
+  const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
+
+  it('issues tokens for valid credentials', async () => {
+    const result = await service.login(dto as any, ctx);
+    expect(result.accessToken).toBe('access');
+    expect(repo.touchLastLogin).toHaveBeenCalledWith('user-1');
+  });
+
+  it('rejects an unknown email with 401', async () => {
+    repo.findUserByEmail.mockResolvedValue(null);
+    await expect(service.login(dto as any, ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects a wrong password with 401', async () => {
+    passwords.compare.mockResolvedValue(false);
+    await expect(service.login(dto as any, ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('gives the same error for unknown email and wrong password', async () => {
+    repo.findUserByEmail.mockResolvedValue(null);
+    const unknownEmail = await service
+      .login(dto as any, ctx)
+      .catch((e) => e.message);
+
+    repo.findUserByEmail.mockResolvedValue(buildUser());
+    passwords.compare.mockResolvedValue(false);
+    const wrongPassword = await service
+      .login(dto as any, ctx)
+      .catch((e) => e.message);
+
+    expect(unknownEmail).toBe(wrongPassword);
+  });
+
+  it('rejects a suspended account with 401 and does not issue tokens', async () => {
+    repo.findUserByEmail.mockResolvedValue(
+      buildUser({ status: UserStatus.suspended }),
+    );
+    await expect(service.login(dto as any, ctx)).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(tokens.issue).not.toHaveBeenCalled();
+  });
+
+  it('hashes even when the user is unknown, to level timing', async () => {
+    repo.findUserByEmail.mockResolvedValue(null);
+    await service.login(dto as any, ctx).catch(() => undefined);
+    expect(passwords.compare).toHaveBeenCalled();
   });
 });
