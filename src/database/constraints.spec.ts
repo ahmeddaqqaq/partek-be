@@ -130,6 +130,56 @@ describe('database constraints', () => {
     ).rejects.toThrow(/append-only/);
   });
 
+  it('rejects a direct purchase order with no cart', async () => {
+    await expect(
+      prisma.purchaseOrder.create({
+        data: {
+          poNumber: `PO-${crypto.randomUUID()}`,
+          sourceType: 'direct',
+          clientId: crypto.randomUUID(),
+          vendorId: crypto.randomUUID(),
+          createdBy: crypto.randomUUID(),
+          selectedIncoterm: 'exw',
+          totalAmountSar: '500.00',
+        },
+      }),
+    ).rejects.toThrow(/purchase_orders_source_type_integrity/);
+  });
+
+  it('rejects an rfq purchase order carrying an rfq but no bid', async () => {
+    await expect(
+      prisma.purchaseOrder.create({
+        data: {
+          poNumber: `PO-${crypto.randomUUID()}`,
+          sourceType: 'rfq',
+          rfqId: crypto.randomUUID(),
+          clientId: crypto.randomUUID(),
+          vendorId: crypto.randomUUID(),
+          createdBy: crypto.randomUUID(),
+          selectedIncoterm: 'd2d',
+          totalAmountSar: '500.00',
+        },
+      }),
+    ).rejects.toThrow(/purchase_orders_source_type_integrity/);
+  });
+
+  it('permits a direct purchase order that carries a cart', async () => {
+    const po = await prisma.purchaseOrder.create({
+      data: {
+        poNumber: `PO-${crypto.randomUUID()}`,
+        sourceType: 'direct',
+        cartId: crypto.randomUUID(),
+        clientId: crypto.randomUUID(),
+        vendorId: crypto.randomUUID(),
+        createdBy: crypto.randomUUID(),
+        selectedIncoterm: 'exw',
+        totalAmountSar: '500.00',
+      },
+    });
+
+    expect(po.id).toBeDefined();
+  });
+
   it('rejects a vehicle whose model belongs to a different make', async () => {
     const toyota = await prisma.vehicleMake.create({
       data: { nameAr: 'تويوتا', nameEn: 'Toyota' },

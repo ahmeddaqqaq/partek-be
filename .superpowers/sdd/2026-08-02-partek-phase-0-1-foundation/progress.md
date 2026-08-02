@@ -110,9 +110,26 @@
   columns as plain uuid) plus the composite vehicles_model_belongs_to_make.
 - CONSEQUENCE FOR EVERY LATER TASK: never run bare `npx prisma migrate dev` again on this project.
   Use `npx prisma migrate dev --create-only` and hand-write, or `npx prisma migrate deploy`.
-- THE DECISION Ahmed still owes: either (A) accept permanent drift and the --create-only workflow,
-  or (B) add the 9 user relations to schema.prisma, which reverses Task 4's deliberate choice and
-  puts ~9 back-relations on User but makes schema.prisma the single source of truth again.
+- DECIDED: option (A) — accept the drift, mandate the --create-only workflow. Ahmed said "go"
+  without picking, so the controller decided. The reasoning that settles it: option (B) does NOT
+  actually buy back `migrate dev`. Prisma cannot express vehicles_model_belongs_to_make, because
+  make_id is already consumed by the `make` relation, so a composite FK spanning it is not
+  representable. (B) would therefore cost 9 relations plus ~9 back-relations on User and STILL
+  leave drift, still requiring --create-only. (A) accepts one documented rule instead of paying
+  for a fix that does not fix anything. Revisit only if the FK list grows.
+
+## REVIEW of Tasks 6-8 (controller-run, 2026-08-02) — self-review, weaker than an independent pass
+- Transcription: all 22 models from the task-6 and task-7 briefs compared field-by-field against
+  schema.prisma after `prisma format`. 0 differences.
+- Task 8 SQL: every statement in the brief was applied; the only additions beyond it are the two
+  Vehicle composite-FK statements, which were deliberate.
+- FINDING (real, fixed): purchase_orders_source_type_integrity was created but never tested. The
+  brief's spec covered only 3 of the 4 named constraints, while the Phase 1 exit criteria claim
+  "the four raw SQL constraints are provably enforced by src/database/constraints.spec.ts". Added
+  3 tests (direct-without-cart rejected, rfq-without-bid rejected, valid direct accepted).
+  constraints.spec.ts is now 10/10 and the exit criterion is genuinely met rather than assumed.
+- Caveat: Tasks 7 and 8 were written by the same controller that reviewed them. An independent
+  review is still worth running before merge.
 
 ## Next: Task 9 (typed config with fail-fast validation).
 - Carry into Task 9: the PLACEHOLDER_PATTERN check + 2 tests agreed at Task 2 (.env.example
