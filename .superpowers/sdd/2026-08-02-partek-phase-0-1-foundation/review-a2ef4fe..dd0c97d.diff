@@ -1,0 +1,165 @@
+# Review package: a2ef4fe..dd0c97d
+
+## Commits
+dd0c97d feat: add docker services and wire Prisma 7 with the pg driver adapter
+
+## Files changed
+ .env.example                   | 26 ++++++++++++++++++++++----
+ docker-compose.yml             | 36 ++++++++++++++++++++++++++++++++++++
+ prisma.config.ts               | 13 +++++++++++++
+ prisma/schema.prisma           | 12 +++---------
+ src/database/prisma.service.ts | 24 ++++++++++++++++++++----
+ 5 files changed, 94 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/.env.example b/.env.example
+index 56733eb..7184107 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,5 +1,23 @@
+-DATABASE_URL=postgresql://user:password@localhost:5432/partek
+-JWT_SECRET=change-me-in-production
+-JWT_EXPIRES_IN=7d
+-PORT=3000
+ NODE_ENV=development
++PORT=3000
++CORS_ORIGINS=http://localhost:3001
++
++DATABASE_URL=postgresql://partek:partek@localhost:5434/partek?schema=public
++
++JWT_ACCESS_SECRET=replace-me-access-secret-do-not-ship
++JWT_ACCESS_EXPIRES_IN=15m
++JWT_REFRESH_SECRET=replace-me-refresh-secret-do-not-ship
++JWT_REFRESH_EXPIRES_IN=7d
++BCRYPT_ROUNDS=12
++
++REDIS_HOST=localhost
++REDIS_PORT=6379
++
++STORAGE_DRIVER=stub
++S3_BUCKET=partek-dev
++S3_REGION=me-south-1
++S3_ENDPOINT=
++
++VAT_RATE=0.15
++DEFAULT_PLATFORM_FEE_PCT=5
++CART_PRICE_LOCK_HOURS=48
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..8388909
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,36 @@
++services:
++  postgres:
++    image: postgres:16-alpine
++    container_name: partek-db
++    restart: unless-stopped
++    environment:
++      POSTGRES_USER: partek
++      POSTGRES_PASSWORD: partek
++      POSTGRES_DB: partek
++    ports:
++      - '5434:5432'
++    volumes:
++      - partek-pgdata:/var/lib/postgresql/data
++    healthcheck:
++      test: ['CMD-SHELL', 'pg_isready -U partek -d partek']
++      interval: 5s
++      timeout: 5s
++      retries: 10
++
++  redis:
++    image: redis:7-alpine
++    container_name: partek-redis
++    restart: unless-stopped
++    ports:
++      - '6379:6379'
++    volumes:
++      - partek-redisdata:/data
++    healthcheck:
++      test: ['CMD', 'redis-cli', 'ping']
++      interval: 5s
++      timeout: 5s
++      retries: 10
++
++volumes:
++  partek-pgdata:
++  partek-redisdata:
+diff --git a/prisma.config.ts b/prisma.config.ts
+new file mode 100644
+index 0000000..60357ad
+--- /dev/null
++++ b/prisma.config.ts
+@@ -0,0 +1,13 @@
++import 'dotenv/config';
++import { defineConfig, env } from 'prisma/config';
++
++export default defineConfig({
++  schema: 'prisma/schema.prisma',
++  migrations: {
++    path: 'prisma/migrations',
++    seed: 'tsx prisma/seed.ts',
++  },
++  datasource: {
++    url: env('DATABASE_URL'),
++  },
++});
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index fb1bf30..46fe70c 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -1,16 +1,10 @@
+ generator client {
+-  provider = "prisma-client-js"
++  provider     = "prisma-client"
++  output       = "../generated/prisma"
++  moduleFormat = "cjs"
+ }
+ 
+ datasource db {
+   provider = "postgresql"
+   url      = env("DATABASE_URL")
+ }
+-
+-model User {
+-  id        String   @id @default(cuid())
+-  email     String   @unique
+-  password  String
+-  createdAt DateTime @default(now())
+-  updatedAt DateTime @updatedAt
+-}
+diff --git a/src/database/prisma.service.ts b/src/database/prisma.service.ts
+index 359f950..e7bf041 100644
+--- a/src/database/prisma.service.ts
++++ b/src/database/prisma.service.ts
+@@ -1,9 +1,25 @@
+-import { Injectable, OnModuleInit } from '@nestjs/common';
+-import { PrismaClient } from '@prisma/client';
++import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
++import { PrismaPg } from '@prisma/adapter-pg';
++import { PrismaClient } from '@prisma-client';
+ 
+ @Injectable()
+-export class PrismaService extends PrismaClient implements OnModuleInit {
+-  async onModuleInit() {
++export class PrismaService
++  extends PrismaClient
++  implements OnModuleInit, OnModuleDestroy
++{
++  constructor() {
++    super({
++      adapter: new PrismaPg({
++        connectionString: process.env.DATABASE_URL as string,
++      }),
++    });
++  }
++
++  async onModuleInit(): Promise<void> {
+     await this.$connect();
+   }
++
++  async onModuleDestroy(): Promise<void> {
++    await this.$disconnect();
++  }
+ }

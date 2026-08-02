@@ -1,0 +1,4 @@
+# Superpowers ships this file containing `*` so SDD working state stays local.
+# Deliberately disabled for this project: the briefs, reports, and progress ledger
+# are the only instructions for the remaining tasks, and losing them would strand
+# the plan mid-execution. They are tracked in git on purpose.

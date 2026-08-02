@@ -1,0 +1,302 @@
+# Review package: cf3ee42..243c456
+
+## Commits
+243c456 feat(db): add vendor, client, and location domains
+
+## Files changed
+ .../migration.sql                                  | 147 +++++++++++++++++++++
+ prisma/schema.prisma                               | 123 +++++++++++++++++
+ 2 files changed, 270 insertions(+)
+
+## Diff
+diff --git a/prisma/migrations/20260802150337_vendor_client_location/migration.sql b/prisma/migrations/20260802150337_vendor_client_location/migration.sql
+new file mode 100644
+index 0000000..35cc6f4
+--- /dev/null
++++ b/prisma/migrations/20260802150337_vendor_client_location/migration.sql
+@@ -0,0 +1,147 @@
++-- CreateTable
++CREATE TABLE "vendors" (
++    "id" UUID NOT NULL,
++    "user_id" UUID NOT NULL,
++    "company_name_ar" TEXT NOT NULL,
++    "company_name_en" TEXT NOT NULL,
++    "cr_number" TEXT NOT NULL,
++    "vat_number" TEXT,
++    "status" "VendorStatus" NOT NULL DEFAULT 'pending',
++    "approved_by" UUID,
++    "approved_at" TIMESTAMP(3),
++    "rejection_reason" TEXT,
++    "platform_fee_pct" DECIMAL(5,2),
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updated_at" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "vendors_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "document_types" (
++    "id" UUID NOT NULL,
++    "name_ar" TEXT NOT NULL,
++    "name_en" TEXT NOT NULL,
++    "is_required" BOOLEAN NOT NULL DEFAULT false,
++    "is_active" BOOLEAN NOT NULL DEFAULT true,
++
++    CONSTRAINT "document_types_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "vendor_documents" (
++    "id" UUID NOT NULL,
++    "vendor_id" UUID NOT NULL,
++    "document_type_id" UUID NOT NULL,
++    "file_url" TEXT NOT NULL,
++    "expiry_date" TIMESTAMP(3),
++    "is_valid" BOOLEAN NOT NULL DEFAULT false,
++    "uploaded_by" UUID NOT NULL,
++    "validated_by" UUID,
++    "uploaded_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "vendor_documents_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "locations" (
++    "id" UUID NOT NULL,
++    "name" TEXT NOT NULL,
++    "address_line" TEXT NOT NULL,
++    "lat" DECIMAL(10,7) NOT NULL,
++    "lng" DECIMAL(10,7) NOT NULL,
++
++    CONSTRAINT "locations_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "vendor_locations" (
++    "id" UUID NOT NULL,
++    "vendor_id" UUID NOT NULL,
++    "location_id" UUID NOT NULL,
++
++    CONSTRAINT "vendor_locations_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "clients" (
++    "id" UUID NOT NULL,
++    "company_name_ar" TEXT NOT NULL,
++    "company_name_en" TEXT NOT NULL,
++    "cr_number" TEXT NOT NULL,
++    "vat_number" TEXT,
++    "status" "ClientStatus" NOT NULL DEFAULT 'pending',
++    "approved_by" UUID,
++    "approved_at" TIMESTAMP(3),
++    "rejection_reason" TEXT,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updated_at" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "clients_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "client_users" (
++    "id" UUID NOT NULL,
++    "client_id" UUID NOT NULL,
++    "user_id" UUID NOT NULL,
++    "org_role" "OrgRole" NOT NULL,
++    "is_active" BOOLEAN NOT NULL DEFAULT true,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "client_users_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "client_locations" (
++    "id" UUID NOT NULL,
++    "client_id" UUID NOT NULL,
++    "location_id" UUID NOT NULL,
++
++    CONSTRAINT "client_locations_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE UNIQUE INDEX "vendors_cr_number_key" ON "vendors"("cr_number");
++
++-- CreateIndex
++CREATE INDEX "vendors_status_idx" ON "vendors"("status");
++
++-- CreateIndex
++CREATE INDEX "vendor_documents_vendor_id_idx" ON "vendor_documents"("vendor_id");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "vendor_locations_vendor_id_location_id_key" ON "vendor_locations"("vendor_id", "location_id");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "clients_cr_number_key" ON "clients"("cr_number");
++
++-- CreateIndex
++CREATE INDEX "clients_status_idx" ON "clients"("status");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "client_users_client_id_user_id_key" ON "client_users"("client_id", "user_id");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "client_locations_client_id_location_id_key" ON "client_locations"("client_id", "location_id");
++
++-- AddForeignKey
++ALTER TABLE "vendor_documents" ADD CONSTRAINT "vendor_documents_vendor_id_fkey" FOREIGN KEY ("vendor_id") REFERENCES "vendors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "vendor_documents" ADD CONSTRAINT "vendor_documents_document_type_id_fkey" FOREIGN KEY ("document_type_id") REFERENCES "document_types"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "vendor_locations" ADD CONSTRAINT "vendor_locations_vendor_id_fkey" FOREIGN KEY ("vendor_id") REFERENCES "vendors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "vendor_locations" ADD CONSTRAINT "vendor_locations_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "client_users" ADD CONSTRAINT "client_users_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "client_locations" ADD CONSTRAINT "client_locations_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "client_locations" ADD CONSTRAINT "client_locations_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 8299edb..6658f6d 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -192,10 +192,133 @@ model RefreshToken {
+   revokedAt DateTime? @map("revoked_at")
+   userAgent String?   @map("user_agent")
+   ipAddress String?   @map("ip_address")
+   createdAt DateTime  @default(now()) @map("created_at")
+ 
+   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+   @@index([userId, revokedAt])
+   @@map("refresh_tokens")
+ }
++
++model Vendor {
++  id              String       @id @default(uuid()) @db.Uuid
++  userId          String       @map("user_id") @db.Uuid
++  companyNameAr   String       @map("company_name_ar")
++  companyNameEn   String       @map("company_name_en")
++  crNumber        String       @unique @map("cr_number")
++  vatNumber       String?      @map("vat_number")
++  status          VendorStatus @default(pending)
++  approvedBy      String?      @map("approved_by") @db.Uuid
++  approvedAt      DateTime?    @map("approved_at")
++  rejectionReason String?      @map("rejection_reason")
++  platformFeePct  Decimal?     @map("platform_fee_pct") @db.Decimal(5, 2)
++  createdAt       DateTime     @default(now()) @map("created_at")
++  updatedAt       DateTime     @updatedAt @map("updated_at")
++
++  documents VendorDocument[]
++  locations VendorLocation[]
++
++  @@index([status])
++  @@map("vendors")
++}
++
++model DocumentType {
++  id         String  @id @default(uuid()) @db.Uuid
++  nameAr     String  @map("name_ar")
++  nameEn     String  @map("name_en")
++  isRequired Boolean @default(false) @map("is_required")
++  isActive   Boolean @default(true) @map("is_active")
++
++  documents VendorDocument[]
++
++  @@map("document_types")
++}
++
++model VendorDocument {
++  id             String    @id @default(uuid()) @db.Uuid
++  vendorId       String    @map("vendor_id") @db.Uuid
++  documentTypeId String    @map("document_type_id") @db.Uuid
++  fileUrl        String    @map("file_url")
++  expiryDate     DateTime? @map("expiry_date")
++  isValid        Boolean   @default(false) @map("is_valid")
++  uploadedBy     String    @map("uploaded_by") @db.Uuid
++  validatedBy    String?   @map("validated_by") @db.Uuid
++  uploadedAt     DateTime  @default(now()) @map("uploaded_at")
++
++  vendor       Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
++  documentType DocumentType @relation(fields: [documentTypeId], references: [id])
++
++  @@index([vendorId])
++  @@map("vendor_documents")
++}
++
++model Location {
++  id          String  @id @default(uuid()) @db.Uuid
++  name        String
++  addressLine String  @map("address_line")
++  lat         Decimal @db.Decimal(10, 7)
++  lng         Decimal @db.Decimal(10, 7)
++
++  vendorLocations VendorLocation[]
++  clientLocations ClientLocation[]
++
++  @@map("locations")
++}
++
++model VendorLocation {
++  id         String @id @default(uuid()) @db.Uuid
++  vendorId   String @map("vendor_id") @db.Uuid
++  locationId String @map("location_id") @db.Uuid
++
++  vendor   Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
++  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
++
++  @@unique([vendorId, locationId])
++  @@map("vendor_locations")
++}
++
++model Client {
++  id              String       @id @default(uuid()) @db.Uuid
++  companyNameAr   String       @map("company_name_ar")
++  companyNameEn   String       @map("company_name_en")
++  crNumber        String       @unique @map("cr_number")
++  vatNumber       String?      @map("vat_number")
++  status          ClientStatus @default(pending)
++  approvedBy      String?      @map("approved_by") @db.Uuid
++  approvedAt      DateTime?    @map("approved_at")
++  rejectionReason String?      @map("rejection_reason")
++  createdAt       DateTime     @default(now()) @map("created_at")
++  updatedAt       DateTime     @updatedAt @map("updated_at")
++
++  clientUsers ClientUser[]
++  locations   ClientLocation[]
++
++  @@index([status])
++  @@map("clients")
++}
++
++model ClientUser {
++  id        String   @id @default(uuid()) @db.Uuid
++  clientId  String   @map("client_id") @db.Uuid
++  userId    String   @map("user_id") @db.Uuid
++  orgRole   OrgRole  @map("org_role")
++  isActive  Boolean  @default(true) @map("is_active")
++  createdAt DateTime @default(now()) @map("created_at")
++
++  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
++
++  @@unique([clientId, userId])
++  @@map("client_users")
++}
++
++model ClientLocation {
++  id         String @id @default(uuid()) @db.Uuid
++  clientId   String @map("client_id") @db.Uuid
++  locationId String @map("location_id") @db.Uuid
++
++  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
++  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
++
++  @@unique([clientId, locationId])
++  @@map("client_locations")
++}

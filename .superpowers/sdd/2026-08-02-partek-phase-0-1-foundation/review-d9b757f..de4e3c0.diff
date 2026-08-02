@@ -1,0 +1,380 @@
+# Review package: d9b757f..de4e3c0
+
+## Commits
+de4e3c0 feat(db): add catalog domain
+
+## Files changed
+ .../20260802150925_catalog/migration.sql           | 188 +++++++++++++++++++++
+ prisma/schema.prisma                               | 160 ++++++++++++++++++
+ 2 files changed, 348 insertions(+)
+
+## Diff
+diff --git a/prisma/migrations/20260802150925_catalog/migration.sql b/prisma/migrations/20260802150925_catalog/migration.sql
+new file mode 100644
+index 0000000..97130fb
+--- /dev/null
++++ b/prisma/migrations/20260802150925_catalog/migration.sql
+@@ -0,0 +1,188 @@
++-- CreateTable
++CREATE TABLE "categories" (
++    "id" UUID NOT NULL,
++    "name_ar" TEXT NOT NULL,
++    "name_en" TEXT NOT NULL,
++    "parent_id" UUID,
++    "is_active" BOOLEAN NOT NULL DEFAULT true,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "categories_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "vehicle_makes" (
++    "id" UUID NOT NULL,
++    "name_ar" TEXT NOT NULL,
++    "name_en" TEXT NOT NULL,
++    "logo_url" TEXT,
++
++    CONSTRAINT "vehicle_makes_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "vehicle_models" (
++    "id" UUID NOT NULL,
++    "make_id" UUID NOT NULL,
++    "name_ar" TEXT NOT NULL,
++    "name_en" TEXT NOT NULL,
++
++    CONSTRAINT "vehicle_models_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "vehicles" (
++    "id" UUID NOT NULL,
++    "make_id" UUID NOT NULL,
++    "model_id" UUID NOT NULL,
++    "trim" TEXT,
++    "year" SMALLINT NOT NULL,
++    "vin" TEXT,
++
++    CONSTRAINT "vehicles_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "brands" (
++    "id" UUID NOT NULL,
++    "name_ar" TEXT NOT NULL,
++    "name_en" TEXT NOT NULL,
++    "brand_type" "BrandType" NOT NULL,
++
++    CONSTRAINT "brands_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "products" (
++    "id" UUID NOT NULL,
++    "vendor_id" UUID NOT NULL,
++    "category_id" UUID NOT NULL,
++    "brand_id" UUID,
++    "oem_part_number" TEXT,
++    "name_ar" TEXT NOT NULL,
++    "name_en" TEXT NOT NULL,
++    "description_ar" TEXT,
++    "description_en" TEXT,
++    "exw_price_sar" DECIMAL(10,2),
++    "d2d_price_sar" DECIMAL(10,2),
++    "stock_quantity" INTEGER NOT NULL DEFAULT 0,
++    "weight_kg" DECIMAL(10,3),
++    "length_cm" DECIMAL(10,2),
++    "width_cm" DECIMAL(10,2),
++    "height_cm" DECIMAL(10,2),
++    "is_active" BOOLEAN NOT NULL DEFAULT true,
++    "quality_validated" BOOLEAN NOT NULL DEFAULT false,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updated_at" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "products_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "part_numbers" (
++    "id" UUID NOT NULL,
++    "product_id" UUID NOT NULL,
++    "part_number" TEXT NOT NULL,
++    "source" TEXT NOT NULL,
++
++    CONSTRAINT "part_numbers_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "product_images" (
++    "id" UUID NOT NULL,
++    "product_id" UUID NOT NULL,
++    "image_url" TEXT NOT NULL,
++    "is_hero" BOOLEAN NOT NULL DEFAULT false,
++    "sort_order" SMALLINT NOT NULL DEFAULT 0,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "product_images_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "product_vehicle_compatibility" (
++    "id" UUID NOT NULL,
++    "product_id" UUID NOT NULL,
++    "vehicle_id" UUID NOT NULL,
++
++    CONSTRAINT "product_vehicle_compatibility_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "product_import_jobs" (
++    "id" UUID NOT NULL,
++    "vendor_id" UUID NOT NULL,
++    "uploaded_by" UUID NOT NULL,
++    "file_url" TEXT NOT NULL,
++    "status" "ImportJobStatus" NOT NULL DEFAULT 'pending',
++    "total_rows" INTEGER NOT NULL DEFAULT 0,
++    "succeeded_rows" INTEGER NOT NULL DEFAULT 0,
++    "failed_rows" INTEGER NOT NULL DEFAULT 0,
++    "error_report_url" TEXT,
++    "started_at" TIMESTAMP(3),
++    "completed_at" TIMESTAMP(3),
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++
++    CONSTRAINT "product_import_jobs_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE INDEX "categories_parent_id_idx" ON "categories"("parent_id");
++
++-- CreateIndex
++CREATE INDEX "vehicle_models_make_id_idx" ON "vehicle_models"("make_id");
++
++-- CreateIndex
++CREATE INDEX "vehicles_make_id_model_id_year_idx" ON "vehicles"("make_id", "model_id", "year");
++
++-- CreateIndex
++CREATE INDEX "products_vendor_id_is_active_idx" ON "products"("vendor_id", "is_active");
++
++-- CreateIndex
++CREATE INDEX "products_category_id_idx" ON "products"("category_id");
++
++-- CreateIndex
++CREATE INDEX "products_oem_part_number_idx" ON "products"("oem_part_number");
++
++-- CreateIndex
++CREATE INDEX "part_numbers_part_number_idx" ON "part_numbers"("part_number");
++
++-- CreateIndex
++CREATE INDEX "product_images_product_id_idx" ON "product_images"("product_id");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "product_vehicle_compatibility_product_id_vehicle_id_key" ON "product_vehicle_compatibility"("product_id", "vehicle_id");
++
++-- CreateIndex
++CREATE INDEX "product_import_jobs_vendor_id_status_idx" ON "product_import_jobs"("vendor_id", "status");
++
++-- AddForeignKey
++ALTER TABLE "categories" ADD CONSTRAINT "categories_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "vehicle_models" ADD CONSTRAINT "vehicle_models_make_id_fkey" FOREIGN KEY ("make_id") REFERENCES "vehicle_makes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_make_id_fkey" FOREIGN KEY ("make_id") REFERENCES "vehicle_makes"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_model_id_fkey" FOREIGN KEY ("model_id") REFERENCES "vehicle_models"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "products" ADD CONSTRAINT "products_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "products" ADD CONSTRAINT "products_brand_id_fkey" FOREIGN KEY ("brand_id") REFERENCES "brands"("id") ON DELETE SET NULL ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "part_numbers" ADD CONSTRAINT "part_numbers_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "product_images" ADD CONSTRAINT "product_images_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "product_vehicle_compatibility" ADD CONSTRAINT "product_vehicle_compatibility_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "product_vehicle_compatibility" ADD CONSTRAINT "product_vehicle_compatibility_vehicle_id_fkey" FOREIGN KEY ("vehicle_id") REFERENCES "vehicles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 6658f6d..d4b6f5c 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -315,10 +315,170 @@ model ClientLocation {
+   id         String @id @default(uuid()) @db.Uuid
+   clientId   String @map("client_id") @db.Uuid
+   locationId String @map("location_id") @db.Uuid
+ 
+   client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+   location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+ 
+   @@unique([clientId, locationId])
+   @@map("client_locations")
+ }
++
++model Category {
++  id        String   @id @default(uuid()) @db.Uuid
++  nameAr    String   @map("name_ar")
++  nameEn    String   @map("name_en")
++  parentId  String?  @map("parent_id") @db.Uuid
++  isActive  Boolean  @default(true) @map("is_active")
++  createdAt DateTime @default(now()) @map("created_at")
++
++  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
++  children Category[] @relation("CategoryTree")
++  products Product[]
++
++  @@index([parentId])
++  @@map("categories")
++}
++
++model VehicleMake {
++  id      String  @id @default(uuid()) @db.Uuid
++  nameAr  String  @map("name_ar")
++  nameEn  String  @map("name_en")
++  logoUrl String? @map("logo_url")
++
++  models   VehicleModel[]
++  vehicles Vehicle[]
++
++  @@map("vehicle_makes")
++}
++
++model VehicleModel {
++  id     String @id @default(uuid()) @db.Uuid
++  makeId String @map("make_id") @db.Uuid
++  nameAr String @map("name_ar")
++  nameEn String @map("name_en")
++
++  make     VehicleMake @relation(fields: [makeId], references: [id], onDelete: Cascade)
++  vehicles Vehicle[]
++
++  @@index([makeId])
++  @@map("vehicle_models")
++}
++
++model Vehicle {
++  id      String  @id @default(uuid()) @db.Uuid
++  makeId  String  @map("make_id") @db.Uuid
++  modelId String  @map("model_id") @db.Uuid
++  trim    String?
++  year    Int     @db.SmallInt
++  vin     String?
++
++  make          VehicleMake                   @relation(fields: [makeId], references: [id])
++  model         VehicleModel                  @relation(fields: [modelId], references: [id])
++  compatibility ProductVehicleCompatibility[]
++  // rfqLineItems RfqLineItem[] is restored in Task 6 Step 1, once RfqLineItem is defined.
++
++  @@index([makeId, modelId, year])
++  @@map("vehicles")
++}
++
++model Brand {
++  id        String    @id @default(uuid()) @db.Uuid
++  nameAr    String    @map("name_ar")
++  nameEn    String    @map("name_en")
++  brandType BrandType @map("brand_type")
++
++  products Product[]
++
++  @@map("brands")
++}
++
++model Product {
++  id               String   @id @default(uuid()) @db.Uuid
++  vendorId         String   @map("vendor_id") @db.Uuid
++  categoryId       String   @map("category_id") @db.Uuid
++  brandId          String?  @map("brand_id") @db.Uuid
++  oemPartNumber    String?  @map("oem_part_number")
++  nameAr           String   @map("name_ar")
++  nameEn           String   @map("name_en")
++  descriptionAr    String?  @map("description_ar")
++  descriptionEn    String?  @map("description_en")
++  exwPriceSar      Decimal? @map("exw_price_sar") @db.Decimal(10, 2)
++  d2dPriceSar      Decimal? @map("d2d_price_sar") @db.Decimal(10, 2)
++  stockQuantity    Int      @default(0) @map("stock_quantity")
++  weightKg         Decimal? @map("weight_kg") @db.Decimal(10, 3)
++  lengthCm         Decimal? @map("length_cm") @db.Decimal(10, 2)
++  widthCm          Decimal? @map("width_cm") @db.Decimal(10, 2)
++  heightCm         Decimal? @map("height_cm") @db.Decimal(10, 2)
++  isActive         Boolean  @default(true) @map("is_active")
++  qualityValidated Boolean  @default(false) @map("quality_validated")
++  createdAt        DateTime @default(now()) @map("created_at")
++  updatedAt        DateTime @updatedAt @map("updated_at")
++
++  category      Category                      @relation(fields: [categoryId], references: [id])
++  brand         Brand?                        @relation(fields: [brandId], references: [id])
++  partNumbers   PartNumber[]
++  images        ProductImage[]
++  compatibility ProductVehicleCompatibility[]
++  // Back-relations to CartItem/RfqLineItem/BidLineItem/PoLineItem are restored in Task 6.
++
++  @@index([vendorId, isActive])
++  @@index([categoryId])
++  @@index([oemPartNumber])
++  @@map("products")
++}
++
++model PartNumber {
++  id         String @id @default(uuid()) @db.Uuid
++  productId  String @map("product_id") @db.Uuid
++  partNumber String @map("part_number")
++  source     String
++
++  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
++
++  @@index([partNumber])
++  @@map("part_numbers")
++}
++
++model ProductImage {
++  id        String   @id @default(uuid()) @db.Uuid
++  productId String   @map("product_id") @db.Uuid
++  imageUrl  String   @map("image_url")
++  isHero    Boolean  @default(false) @map("is_hero")
++  sortOrder Int      @default(0) @map("sort_order") @db.SmallInt
++  createdAt DateTime @default(now()) @map("created_at")
++
++  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
++
++  @@index([productId])
++  @@map("product_images")
++}
++
++model ProductVehicleCompatibility {
++  id        String @id @default(uuid()) @db.Uuid
++  productId String @map("product_id") @db.Uuid
++  vehicleId String @map("vehicle_id") @db.Uuid
++
++  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
++  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
++
++  @@unique([productId, vehicleId])
++  @@map("product_vehicle_compatibility")
++}
++
++model ProductImportJob {
++  id             String          @id @default(uuid()) @db.Uuid
++  vendorId       String          @map("vendor_id") @db.Uuid
++  uploadedBy     String          @map("uploaded_by") @db.Uuid
++  fileUrl        String          @map("file_url")
++  status         ImportJobStatus @default(pending)
++  totalRows      Int             @default(0) @map("total_rows")
++  succeededRows  Int             @default(0) @map("succeeded_rows")
++  failedRows     Int             @default(0) @map("failed_rows")
++  errorReportUrl String?         @map("error_report_url")
++  startedAt      DateTime?       @map("started_at")
++  completedAt    DateTime?       @map("completed_at")
++  createdAt      DateTime        @default(now()) @map("created_at")
++
++  @@index([vendorId, status])
++  @@map("product_import_jobs")
++}

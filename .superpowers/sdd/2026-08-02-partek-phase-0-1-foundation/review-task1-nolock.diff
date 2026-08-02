@@ -1,0 +1,257 @@
+=== COMMITS 81a46d4..a2ef4fe ===
+a2ef4fe chore: rename to partek-be, upgrade to NestJS 11 + Prisma 7, restructure src
+
+=== STAT (full, including lockfile) ===
+ .gitignore                                        |     1 +
+ package-lock.json                                 | 11319 ++++++++++++++++++++
+ package.json                                      |    86 +-
+ src/{modules => }/auth/dto/login.dto.ts           |     0
+ src/{modules => }/auth/dto/register.dto.spec.ts   |     0
+ src/{modules => }/auth/dto/register.dto.ts        |     0
+ src/common/prisma/prisma.service.spec.ts          |    17 -
+ src/{common => }/config/configuration.ts          |     2 +-
+ src/{common/prisma => database}/prisma.module.ts  |     0
+ src/{common/prisma => database}/prisma.service.ts |     0
+ tsconfig.json                                     |    21 +-
+ 11 files changed, 11386 insertions(+), 60 deletions(-)
+
+=== NOTE ===
+package-lock.json is EXCLUDED from the diff below (400KB of generated noise).
+Installed versions were independently verified by the controller:
+  @nestjs/core 11.1.28, @prisma/client 7.9.1, bullmq 5.81.3
+
+=== FULL DIFF (excluding package-lock.json) ===
+diff --git a/.gitignore b/.gitignore
+index 5140820..d58ea9b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,6 +1,7 @@
+ /dist
+ /node_modules
+ /coverage
++/generated
+ .env
+ *.log
+ .DS_Store
+diff --git a/package.json b/package.json
+index 4001500..415e957 100644
+--- a/package.json
++++ b/package.json
+@@ -1,63 +1,79 @@
+ {
+   "name": "partek-api",
+   "version": "0.0.1",
+   "private": true,
+   "scripts": {
+     "build": "nest build",
+     "start": "nest start",
+     "start:dev": "nest start --watch",
+     "start:prod": "node dist/main",
++    "db:up": "docker compose up -d",
++    "db:down": "docker compose down",
++    "db:migrate": "prisma migrate dev",
++    "db:generate": "prisma generate",
++    "db:seed": "prisma db seed",
++    "db:reset": "prisma migrate reset --force",
+     "test": "jest",
+     "test:watch": "jest --watch",
+     "test:cov": "jest --coverage",
+-    "test:e2e": "jest --config ./test/jest-e2e.json"
++    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand"
+   },
+   "dependencies": {
+-    "@nestjs/common": "^10.0.0",
+-    "@nestjs/config": "^3.0.0",
+-    "@nestjs/core": "^10.0.0",
+-    "@nestjs/jwt": "^10.0.0",
+-    "@nestjs/mapped-types": "^2.0.0",
+-    "@nestjs/passport": "^10.0.0",
+-    "@nestjs/platform-express": "^10.0.0",
+-    "@nestjs/swagger": "^7.0.0",
+-    "@prisma/client": "^5.0.0",
+-    "bcrypt": "^5.1.0",
++    "@nestjs/bullmq": "^11.0.4",
++    "@nestjs/common": "^11.1.28",
++    "@nestjs/config": "^4.0.4",
++    "@nestjs/core": "^11.1.28",
++    "@nestjs/jwt": "^11.0.2",
++    "@nestjs/mapped-types": "^2.1.1",
++    "@nestjs/passport": "^11.0.5",
++    "@nestjs/platform-express": "^11.1.28",
++    "@nestjs/swagger": "^11.4.6",
++    "@prisma/adapter-pg": "^7.9.1",
++    "@prisma/client": "^7.9.1",
++    "bcrypt": "^5.1.1",
++    "bullmq": "^5.81.3",
+     "class-transformer": "^0.5.1",
+-    "class-validator": "^0.14.0",
+-    "date-fns": "^3.0.0",
+-    "passport": "^0.6.0",
++    "class-validator": "^0.14.1",
++    "date-fns": "^3.6.0",
++    "dotenv": "^16.4.5",
++    "passport": "^0.7.0",
+     "passport-jwt": "^4.0.1",
+-    "reflect-metadata": "^0.1.13",
++    "reflect-metadata": "^0.2.2",
+     "rxjs": "^7.8.1",
+-    "swagger-ui-express": "^5.0.0"
++    "swagger-ui-express": "^5.0.1"
+   },
+   "devDependencies": {
+-    "@nestjs/cli": "^10.0.0",
+-    "@nestjs/schematics": "^10.0.0",
+-    "@nestjs/testing": "^10.0.0",
+-    "@types/bcrypt": "^5.0.0",
+-    "@types/express": "^4.17.17",
+-    "@types/jest": "^29.5.2",
+-    "@types/node": "^20.3.1",
+-    "@types/passport-jwt": "^3.0.8",
+-    "@types/supertest": "^2.0.12",
+-    "jest": "^29.5.0",
+-    "prisma": "^5.0.0",
++    "@nestjs/cli": "^11.0.24",
++    "@nestjs/schematics": "^11.0.0",
++    "@nestjs/testing": "^11.1.28",
++    "@types/bcrypt": "^5.0.2",
++    "@types/express": "^5.0.0",
++    "@types/jest": "^29.5.14",
++    "@types/node": "^22.10.0",
++    "@types/passport-jwt": "^4.0.1",
++    "@types/supertest": "^6.0.2",
++    "jest": "^29.7.0",
++    "prisma": "^7.9.1",
+     "source-map-support": "^0.5.21",
+-    "supertest": "^6.3.3",
+-    "ts-jest": "^29.1.0",
+-    "ts-loader": "^9.4.3",
++    "supertest": "^7.0.0",
++    "ts-jest": "^29.2.5",
++    "ts-loader": "^9.5.1",
+     "tsconfig-paths": "^4.2.0",
+-    "typescript": "^5.1.3"
++    "tsx": "^4.19.2",
++    "typescript": "^5.9.3"
+   },
+   "jest": {
+     "moduleFileExtensions": ["js", "json", "ts"],
+-    "rootDir": "src",
++    "rootDir": ".",
++    "roots": ["<rootDir>/src"],
+     "testRegex": ".*\\.spec\\.ts$",
+     "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+-    "collectCoverageFrom": ["**/*.(t|j)s"],
+-    "coverageDirectory": "../coverage",
+-    "testEnvironment": "node"
++    "collectCoverageFrom": ["src/**/*.(t|j)s"],
++    "coverageDirectory": "./coverage",
++    "testEnvironment": "node",
++    "moduleNameMapper": {
++      "^@/(.*)$": "<rootDir>/src/$1",
++      "^@prisma-client$": "<rootDir>/generated/prisma/client"
++    }
+   }
+ }
+diff --git a/src/modules/auth/dto/login.dto.ts b/src/auth/dto/login.dto.ts
+similarity index 100%
+rename from src/modules/auth/dto/login.dto.ts
+rename to src/auth/dto/login.dto.ts
+diff --git a/src/modules/auth/dto/register.dto.spec.ts b/src/auth/dto/register.dto.spec.ts
+similarity index 100%
+rename from src/modules/auth/dto/register.dto.spec.ts
+rename to src/auth/dto/register.dto.spec.ts
+diff --git a/src/modules/auth/dto/register.dto.ts b/src/auth/dto/register.dto.ts
+similarity index 100%
+rename from src/modules/auth/dto/register.dto.ts
+rename to src/auth/dto/register.dto.ts
+diff --git a/src/common/prisma/prisma.service.spec.ts b/src/common/prisma/prisma.service.spec.ts
+deleted file mode 100644
+index d5e4f65..0000000
+--- a/src/common/prisma/prisma.service.spec.ts
++++ /dev/null
+@@ -1,17 +0,0 @@
+-import { Test, TestingModule } from '@nestjs/testing';
+-import { PrismaService } from './prisma.service';
+-
+-describe('PrismaService', () => {
+-  let service: PrismaService;
+-
+-  beforeEach(async () => {
+-    const module: TestingModule = await Test.createTestingModule({
+-      providers: [PrismaService],
+-    }).compile();
+-    service = module.get<PrismaService>(PrismaService);
+-  });
+-
+-  it('should be defined', () => {
+-    expect(service).toBeDefined();
+-  });
+-});
+diff --git a/src/common/config/configuration.ts b/src/config/configuration.ts
+similarity index 81%
+rename from src/common/config/configuration.ts
+rename to src/config/configuration.ts
+index fa78664..0317660 100644
+--- a/src/common/config/configuration.ts
++++ b/src/config/configuration.ts
+@@ -1,11 +1,11 @@
+ export default () => ({
+-  port: parseInt(process.env.PORT, 10) || 3000,
++  port: parseInt(process.env.PORT ?? '', 10) || 3000,
+   nodeEnv: process.env.NODE_ENV || 'development',
+   jwt: {
+     secret: process.env.JWT_SECRET,
+     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+   },
+   database: {
+     url: process.env.DATABASE_URL,
+   },
+ });
+diff --git a/src/common/prisma/prisma.module.ts b/src/database/prisma.module.ts
+similarity index 100%
+rename from src/common/prisma/prisma.module.ts
+rename to src/database/prisma.module.ts
+diff --git a/src/common/prisma/prisma.service.ts b/src/database/prisma.service.ts
+similarity index 100%
+rename from src/common/prisma/prisma.service.ts
+rename to src/database/prisma.service.ts
+diff --git a/tsconfig.json b/tsconfig.json
+index 95f5641..7108ac5 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -1,21 +1,28 @@
+ {
+   "compilerOptions": {
+     "module": "commonjs",
+     "declaration": true,
+     "removeComments": true,
+     "emitDecoratorMetadata": true,
+     "experimentalDecorators": true,
+     "allowSyntheticDefaultImports": true,
+-    "target": "ES2021",
++    "target": "ES2023",
+     "sourceMap": true,
+     "outDir": "./dist",
+     "baseUrl": "./",
+     "incremental": true,
+     "skipLibCheck": true,
+-    "strictNullChecks": false,
+-    "noImplicitAny": false,
+-    "strictBindCallApply": false,
+-    "forceConsistentCasingInFileNames": false,
+-    "noFallthroughCasesInSwitch": false
+-  }
++    "strictNullChecks": true,
++    "noImplicitAny": true,
++    "strictBindCallApply": true,
++    "forceConsistentCasingInFileNames": true,
++    "noFallthroughCasesInSwitch": true,
++    "esModuleInterop": true,
++    "paths": {
++      "@/*": ["src/*"],
++      "@prisma-client": ["generated/prisma/client"]
++    }
++  },
++  "include": ["src/**/*", "prisma/**/*", "generated/**/*"],
++  "exclude": ["node_modules", "dist"]
+ }
