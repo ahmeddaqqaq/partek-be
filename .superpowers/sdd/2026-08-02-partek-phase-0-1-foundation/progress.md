@@ -208,14 +208,28 @@
   3 tests. The important one asserts refresh does not leak passwordHash — refresh is the second
   place a full User crosses into a response DTO, and toAuthUser is what keeps it out.
 
-## Next: Task 14 (RolesGuard, @Roles(), and global guard registration).
-- Task 14 registers JwtAuthGuard GLOBALLY. Every existing @Public() route depends on that decorator
-  being honoured — auth.controller.ts marks all four endpoints @Public(), including logout.
-- logout is @Public() and returns 204 even for an unknown token, deliberately: requiring a live
-  access token would strand expired sessions, and a distinct error would let an attacker probe
-  whether a stolen token is still valid. Do not "fix" this in Task 14.
-- AuthenticatedUser (from jwt.strategy.ts) is what @CurrentUser() returns. RolesGuard must read
-  `.role` from that, which the strategy sources from the DATABASE, not the token claim.
+- Task 14: complete. @Roles()/ROLES_KEY, RolesGuard, typed @CurrentUser() supporting both
+  @CurrentUser() and @CurrentUser('id'). TDD followed. 6/6 guard tests; full suite 10 suites /
+  67 tests; tsc clean.
+  RolesGuard fails CLOSED on an empty @Roles() list — an argument-less decorator is far likelier a
+  typo than an intentional "any authenticated user", and guessing wrong yields an open endpoint.
+- Task 14 brief discrepancies (no action needed, recorded so a reviewer does not re-flag them):
+  (a) The file list says "Modify: src/common/guards/jwt-auth.guard.ts", but no step modifies it and
+      none is needed — it already reads IS_PUBLIC_KEY via getAllAndOverride and short-circuits.
+      Left untouched deliberately.
+  (b) The task TITLE says "global guard registration", but no step registers anything globally.
+      That actually happens in Task 18 (APP_GUARD: JwtAuthGuard then RolesGuard, in that order —
+      JwtAuthGuard populates request.user, which RolesGuard reads). Verified against the Task 18
+      brief. Nothing is missing from Task 14; the title is just wrong.
+- CONSEQUENCE: RolesGuard is written and unit-tested but NOT YET WIRED. No route is role-gated
+  until Task 18 registers it. Do not treat "roles work" as true before then.
+
+## Next: Task 15 (users module).
+- Task 15 is the first consumer of @Roles() and @CurrentUser() on a real controller. Its /users
+  (admin-only) and /users/me routes are exactly what the Phase 1 exit criteria assert:
+  unauthenticated /users/me -> 401, client-role /users -> 403.
+- Those two assertions CANNOT pass until Task 18 registers the guards globally. Expect Task 15's
+  unit tests to pass while the e2e behaviour is still absent — that is the intended sequence.
 - bcrypt is the Task 1 npm-audit item: CRITICAL tar <- @mapbox/node-pre-gyp <- bcrypt@5, install-time
   only. Now actually in use. Still deferred; triage before merge. Real fix is bcrypt@6.
 - Tasks 6, 7, and 8 were reviewed by the controller (see above). Tasks 9-12 are UNREVIEWED.
