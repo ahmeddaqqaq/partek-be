@@ -190,13 +190,32 @@
   the whole enumeration defence. Verified against real bcrypt: resolves false. Task 21's e2e is the
   first place this would otherwise have surfaced.
 
-## Next: Task 13 (auth — refresh, logout, and the token service).
-- Task 13 REPLACES the throwing TokenService placeholder from Task 11. Keep TokenPair exported from
-  token.service.ts — auth.service.ts imports it from there, and moving it creates an import cycle.
-- The placeholder's `issue(user, ctx)` signature is already depended on by BOTH register and login.
-  Task 13 must keep that shape or update both call sites.
-- refresh_tokens has an index on (user_id, revoked_at) but NOT on expires_at — noted at Task 3 as a
-  gap for a future pruning job. Task 13 is where a pruning path would live if one is added.
+- Task 13: complete. TokenRepository, the real TokenService (issue/rotate/revoke/revokeAllForUser),
+  AuthService.refresh + logout, RefreshDto, AuthController, AuthModule. TDD followed on the token
+  service. auth suite 36 tests; full suite 9 suites / 61 tests; tsc clean.
+  Refresh tokens are opaque 256-bit random values stored as SHA-256 digests (not bcrypt — they are
+  already full entropy, so there is nothing to brute-force, and lookup must be an indexed equality
+  match). Rotation is single-use: the presented token is revoked before the replacement is issued.
+- PLAN DEFECT #8 (fixed): the brief's TokenService does not typecheck. @nestjs/jwt types
+  JwtSignOptions['expiresIn'] as the `ms` template-literal union, not `string`, so passing
+  config.accessExpiresIn fails all three signAsync overloads. The value genuinely IS an arbitrary
+  string (it comes from an env var), so it is cast at the call site with a comment rather than
+  widening the type. A malformed value now fails inside jsonwebtoken at sign time.
+  NOTE: refreshExpiry() validates JWT_REFRESH_EXPIRES_IN against /^(\d+)([smhd])$/ and throws a
+  clear error, but JWT_ACCESS_EXPIRES_IN has NO equivalent validation — a typo there surfaces as a
+  jsonwebtoken error on the first login instead of at boot. Candidate for Task 9's validateEnv.
+- Task 13 extra coverage (not in the brief): AuthService.refresh and .logout shipped untested. Added
+  3 tests. The important one asserts refresh does not leak passwordHash — refresh is the second
+  place a full User crosses into a response DTO, and toAuthUser is what keeps it out.
+
+## Next: Task 14 (RolesGuard, @Roles(), and global guard registration).
+- Task 14 registers JwtAuthGuard GLOBALLY. Every existing @Public() route depends on that decorator
+  being honoured — auth.controller.ts marks all four endpoints @Public(), including logout.
+- logout is @Public() and returns 204 even for an unknown token, deliberately: requiring a live
+  access token would strand expired sessions, and a distinct error would let an attacker probe
+  whether a stolen token is still valid. Do not "fix" this in Task 14.
+- AuthenticatedUser (from jwt.strategy.ts) is what @CurrentUser() returns. RolesGuard must read
+  `.role` from that, which the strategy sources from the DATABASE, not the token claim.
 - bcrypt is the Task 1 npm-audit item: CRITICAL tar <- @mapbox/node-pre-gyp <- bcrypt@5, install-time
   only. Now actually in use. Still deferred; triage before merge. Real fix is bcrypt@6.
 - Tasks 6, 7, and 8 were reviewed by the controller (see above). Tasks 9-12 are UNREVIEWED.

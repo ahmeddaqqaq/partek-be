@@ -73,6 +73,18 @@ export class AuthService {
     return { ...pair, user: this.toAuthUser(user) };
   }
 
+  async refresh(
+    refreshToken: string,
+    ctx: RequestContext,
+  ): Promise<AuthTokensDto> {
+    const { user, ...pair } = await this.tokens.rotate(refreshToken, ctx);
+    return { ...pair, user: this.toAuthUser(user) };
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    await this.tokens.revoke(refreshToken);
+  }
+
   protected toAuthUser(user: User): AuthUserDto {
     return {
       id: user.id,

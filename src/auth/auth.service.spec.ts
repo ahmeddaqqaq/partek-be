@@ -165,3 +165,55 @@ describe('AuthService.login', () => {
     expect(passwords.compare).toHaveBeenCalled();
   });
 });
+
+describe('AuthService.refresh and logout', () => {
+  let repo: any;
+  let passwords: any;
+  let tokens: any;
+  let service: AuthService;
+
+  beforeEach(() => {
+    repo = {
+      findUserByEmail: jest.fn(),
+      createUser: jest.fn(),
+      touchLastLogin: jest.fn(),
+    };
+    passwords = { hash: jest.fn(), compare: jest.fn() };
+    tokens = {
+      issue: jest.fn(),
+      rotate: jest.fn().mockResolvedValue({
+        accessToken: 'new-access',
+        refreshToken: 'new-refresh',
+        user: buildUser(),
+      }),
+      revoke: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new AuthService(repo, passwords, tokens);
+  });
+
+  const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
+
+  it('returns the rotated pair', async () => {
+    const result = await service.refresh('old-refresh', ctx);
+    expect(tokens.rotate).toHaveBeenCalledWith('old-refresh', ctx);
+    expect(result.accessToken).toBe('new-access');
+    expect(result.refreshToken).toBe('new-refresh');
+  });
+
+  it('never leaks the password hash through refresh', async () => {
+    const result = await service.refresh('old-refresh', ctx);
+    expect(JSON.stringify(result)).not.toContain('hashed');
+    expect(result.user).toEqual({
+      id: 'user-1',
+      email: 'buyer@fleet.sa',
+      role: UserRole.client,
+      status: UserStatus.active,
+      preferredLanguage: Language.en,
+    });
+  });
+
+  it('revokes the presented token on logout', async () => {
+    await expect(service.logout('a-token')).resolves.toBeUndefined();
+    expect(tokens.revoke).toHaveBeenCalledWith('a-token');
+  });
+});
